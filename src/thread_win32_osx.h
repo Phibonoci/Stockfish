@@ -29,14 +29,15 @@
 
 #if defined(__APPLE__) || defined(__MINGW32__) || defined(__MINGW64__) || defined(USE_PTHREADS)
 
-    #include <pthread.h>
     #include <functional>
+    #include <pthread.h>
+    #include "memory.h"
 
 namespace Stockfish {
 
 class NativeThread {
-    pthread_t thread;
-    void*     stack{nullptr};
+    pthread_t                  thread;
+    LargePagePtr<std::uint8_t> stack{nullptr};
 
     static constexpr size_t TH_STACK_SIZE = 8 * 1024 * 1024;
 
@@ -48,12 +49,8 @@ class NativeThread {
         pthread_attr_t attr_storage, *attr = &attr_storage;
         pthread_attr_init(attr);
 
-        void* stack = mmap(nullptr, TH_STACK_SIZE, PROT_READ | PROT_WRITE,
-                           MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB, -1, 0);
-        if (stack != MAP_FAIL)
-            pthread_attr_setstack(attr, stack, TH_STACK_SIZE);
-        else
-            pthread_attr_setstacksize(attr, TH_STACK_SIZE);
+        stack = make_unique_large_page<std::uint8_t>(TH_STACK_SIZE);
+        pthread_attr_setstack(attr, stack.get(), TH_STACK_SIZE);
 
         auto start_routine = [](void* ptr) -> void* {
             auto f = reinterpret_cast<std::function<void()>*>(ptr);
@@ -66,11 +63,7 @@ class NativeThread {
         pthread_create(&thread, attr, start_routine, func);
     }
 
-    void join() {
-        pthread_join(thread, nullptr);
-        if (stack != nullptr)
-            munmap(stack);
-    }
+    void join() { pthread_join(thread, nullptr); }
 };
 
 }  // namespace Stockfish
