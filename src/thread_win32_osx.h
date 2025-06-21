@@ -31,7 +31,9 @@
 
     #include <functional>
     #include <pthread.h>
-    #include <sys/mman.h>
+    #ifndef _WIN32
+        #include <sys/mman.h>
+    #endif
 
 namespace Stockfish {
 
