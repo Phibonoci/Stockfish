@@ -53,15 +53,15 @@ class NativeThread {
         pthread_attr_t attr_storage, *attr = &attr_storage;
         pthread_attr_init(attr);
     #ifndef _WIN32
-        void* stack = mmap(nullptr, TH_STACK_SIZE, PROT_READ | PROT_WRITE,
-                           MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB, -1, 0);
-        if (stack != MAP_FAIL)
+        stack = mmap(nullptr, TH_STACK_SIZE, PROT_READ | PROT_WRITE,
+                     MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB, -1, 0);
+        if (stack != MAP_FAILED)
             pthread_attr_setstack(attr, stack, TH_STACK_SIZE);
         else
             pthread_attr_setstacksize(attr, TH_STACK_SIZE);
-    #endif
-
+    #else
         pthread_attr_setstacksize(attr, TH_STACK_SIZE);
+    #endif
 
         auto start_routine = [](void* ptr) -> void* {
             auto f = reinterpret_cast<std::function<void()>*>(ptr);
@@ -78,7 +78,7 @@ class NativeThread {
         pthread_join(thread, nullptr);
     #ifndef _WIN32
         if (stack != nullptr)
-            munmap(stack);
+            munmap(stack, TH_STACK_SIZE);
     #endif
     }
 };
