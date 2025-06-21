@@ -31,6 +31,7 @@
 
     #include <functional>
     #include <pthread.h>
+    #include <cstdint>
     #include "memory.h"
 
 namespace Stockfish {
