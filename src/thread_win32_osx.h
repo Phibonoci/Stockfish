@@ -36,18 +36,24 @@ namespace Stockfish {
 
 class NativeThread {
     pthread_t thread;
+    void*     stack{nullptr};
 
     static constexpr size_t TH_STACK_SIZE = 8 * 1024 * 1024;
 
    public:
-    template<class Function, class... Args>
-    explicit NativeThread(Function&& fun, Args&&... args) {
+    template<class Function, class... Args> explicit NativeThread(Function&& fun, Args&&... args) {
         auto func = new std::function<void()>(
           std::bind(std::forward<Function>(fun), std::forward<Args>(args)...));
 
         pthread_attr_t attr_storage, *attr = &attr_storage;
         pthread_attr_init(attr);
-        pthread_attr_setstacksize(attr, TH_STACK_SIZE);
+
+        void* stack = mmap(nullptr, TH_STACK_SIZE, PROT_READ | PROT_WRITE,
+                           MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB, -1, 0);
+        if (stack != MAP_FAIL)
+            pthread_attr_setstack(attr, stack, TH_STACK_SIZE);
+        else
+            pthread_attr_setstacksize(attr, TH_STACK_SIZE);
 
         auto start_routine = [](void* ptr) -> void* {
             auto f = reinterpret_cast<std::function<void()>*>(ptr);
@@ -60,7 +66,11 @@ class NativeThread {
         pthread_create(&thread, attr, start_routine, func);
     }
 
-    void join() { pthread_join(thread, nullptr); }
+    void join() {
+        pthread_join(thread, nullptr);
+        if (stack != nullptr)
+            munmap(stack);
+    }
 };
 
 }  // namespace Stockfish
